@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BlockCert</title>
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<div class="page-shell">
+<h1>BlockCert</h1><div>Sistema de Certificação Acadêmica baseado em Blockchain (local)</div>
+
+<div class="card"><h2>Dashboard</h2><div class="grid" id="dash"></div></div>
+
+<div class="card"><h2>Registrar certificado</h2>
+<label>ID<input id="r_id" value="CERT-001"></label><label>Aluno<input id="r_student" value="João Silva"></label>
+<label>Curso<input id="r_course" value="Sistemas de Informação"></label><label>Instituição<input id="r_inst" value="BlockCert Academy"></label>
+<label>Data<input id="r_date" type="date"></label><label>Emissor<input id="r_issuer" value="ADMIN"></label>
+<button onclick="registrar()">Registrar certificado</button><div class="msg" id="r_msg"></div></div>
+
+<div class="card"><h2>Consultar certificado</h2>
+<label>ID<input id="q_id" value="CERT-001"></label><button onclick="consultar()">Consultar</button><div class="msg" id="q_msg"></div></div>
+
+<div class="card"><h2>Cancelar certificado</h2>
+<label>ID<input id="c_id" value="CERT-001"></label><label>Emissor<input id="c_issuer" value="ADMIN"></label>
+<button onclick="cancelar()">Cancelar certificado</button><div class="msg" id="c_msg"></div></div>
+
+<div class="card"><h2>Blockchain</h2><div id="chain_status"></div><div id="chain"></div></div>
+
+<script>
+const $=id=>document.getElementById(id);
+$('r_date').value=new Date().toISOString().slice(0,10);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function show(id,ok,html){const e=$(id);e.className='msg '+(ok?'ok':'err');e.innerHTML=html}
+async function post(url,obj){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(obj)});return r.json()}
+async function registrar(){
+  const j=await post('/api/certificates',{id:$('r_id').value,student:$('r_student').value,course:$('r_course').value,institution:$('r_inst').value,date:$('r_date').value,issuer:$('r_issuer').value});
+  show('r_msg',j.success,j.success?esc(j.message):'❌ Operação rejeitada. '+esc(j.message));refresh()}
+async function cancelar(){
+  const j=await post('/api/certificates/'+encodeURIComponent($('c_id').value)+'/cancel',{issuer:$('c_issuer').value});
+  show('c_msg',j.success,j.success?esc(j.message)+' Status: CANCELLED':'❌ Operação rejeitada. '+esc(j.message));refresh()}
+async function consultar(){
+  const j=await (await fetch('/api/certificates/'+encodeURIComponent($('q_id').value))).json();
+  if(!j.success)return show('q_msg',false,esc(j.message));const c=j.certificate;
+  show('q_msg',true,`<b>${esc(c.id)}</b><br>Aluno: ${esc(c.student)}<br>Curso: ${esc(c.course)}<br>Instituição: ${esc(c.institution)}<br>Data: ${esc(c.date)}<br>Emissor: ${esc(c.issuer)}<br>Status: <b>${c.status}</b>`)}
+async function refresh(){
+  const s=await (await fetch('/api/summary')).json();
+  $('dash').innerHTML=[['Certificados',s.total],['Válidos',s.valid],['Cancelados',s.cancelled],['Blocos',s.blocks],['Blockchain',s.chainValid?'✔ válida':'✘ inválida']].map(x=>`<div class="stat"><b>${x[1]}</b>${x[0]}</div>`).join('');
+  const b=await (await fetch('/api/blockchain')).json();
+  $('chain_status').innerHTML=`<p class="${b.valid?'valid':'invalid'}">${b.valid?'Blockchain válida':'Blockchain inválida'}</p><small>Dificuldade (Proof of Work): ${b.difficulty}</small>`;
+  $('chain').innerHTML=b.blocks.map(k=>`<div class="block"><b>Bloco #${k.index}</b><br>timestamp: ${k.timestamp} (${new Date(k.timestamp).toLocaleString()})<br>data: ${esc(k.data)}<br>hash: ${k.hash}<br>previousHash: ${k.previousHash}<br>nonce: ${k.nonce}</div>`).join('')}
+refresh();
+</script>
+</div>
+</body></html>
